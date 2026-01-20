@@ -2,6 +2,7 @@ import os
 import sys  # 新增：用于强制退出
 import asyncio
 import mimetypes
+import random # ✅ 修正：正确放在头部
 from datetime import datetime, timedelta, timezone
 import requests
 from telethon import TelegramClient
@@ -63,23 +64,43 @@ async def main():
     print("🚀 Script Started...")
     print(f"📂 Brand Mapping: {channel_map}") 
     
-    # --- 🛡️ 核心修复：安全连接逻辑 ---
-    try:
-        print("📡 Connecting to Telegram...")
-        await client.connect()
-    except Exception as e:
-        print(f"🔥 Connection Error: {e}")
-        sys.exit(1)
+    # --- 🛡️ 增强版：带重试机制的连接逻辑 ---
+    max_retries = 3
+    for i in range(max_retries):
+        try:
+            # ✅ 新增：随机等待 1-5 秒，防止被 Telegram 秒杀封锁 IP
+            wait_time = random.uniform(1, 5)
+            print(f"⏳ Sleeping for {wait_time:.2f}s before connecting...")
+            await asyncio.sleep(wait_time)
+            # ---------------------------------------
 
-    # 关键检查：如果 Session 在 GitHub IP 被判定失效，立即报错退出，防止卡死
-    if not await client.is_user_authorized():
-        print("==========================================")
-        print("❌ 严重错误：Telegram 拒绝了此 Session (可能是异地 IP 触发验证)。")
-        print("👉 脚本将立即退出，而不是卡在这里等待验证码。")
-        print("==========================================")
-        sys.exit(1)
-    
-    print("✅ 登录成功！Session 有效，开始执行业务逻辑。")
+            print(f"📡 Connecting to Telegram (Attempt {i+1}/{max_retries})...")
+            await client.connect()
+            
+            # 连接建立后，立即检查是否获得授权
+            if await client.is_user_authorized():
+                print("✅ 登录成功！Session 有效。")
+                break # 成功连接且已授权，跳出循环，继续执行后面代码
+            else:
+                print("==========================================")
+                print("❌ 严重错误：Telegram 拒绝了此 Session (需要验证码)。")
+                print("👉 这是一个无法自动恢复的错误，脚本将退出。")
+                print("==========================================")
+                sys.exit(1)
+                
+        except (ConnectionError, OSError) as e:
+            # 这里专门捕获 "Connection reset by peer" (Errno 104)
+            print(f"⚠️ 连接被重置/拒绝 (可能是 IP 被拉黑): {e}")
+            if i < max_retries - 1:
+                print("⏳ 等待 5 秒后尝试切换端口重连...")
+                await client.disconnect() # 确保断开清理旧连接
+                await asyncio.sleep(5)
+            else:
+                print("🔥 重试次数耗尽。建议在 GitHub Actions 页面点击 'Re-run' 以更换 IP。")
+                sys.exit(1)
+        except Exception as e:
+            print(f"🔥 未知连接错误: {e}")
+            sys.exit(1)
     # ------------------------------------
     
     # 设定时间窗口：过去 65 分钟
