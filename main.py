@@ -1,8 +1,8 @@
 import os
-import sys  # 新增：用于强制退出
+import sys
 import asyncio
 import mimetypes
-import random # ✅ 修正：正确放在头部
+import random
 from datetime import datetime, timedelta, timezone
 import requests
 from telethon import TelegramClient
