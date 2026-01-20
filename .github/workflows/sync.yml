@@ -24,6 +24,7 @@ jobs:
 
       - name: Run Sync Script
         env:
+          PYTHONUNBUFFERED: "1"
           TG_API_ID: ${{ secrets.TG_API_ID }}
           TG_API_HASH: ${{ secrets.TG_API_HASH }}
           TG_SESSION_STRING: ${{ secrets.TG_SESSION_STRING }}
