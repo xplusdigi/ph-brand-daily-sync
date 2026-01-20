@@ -1,4 +1,5 @@
 import os
+import sys  # 新增：用于强制退出
 import asyncio
 import mimetypes
 from datetime import datetime, timedelta, timezone
@@ -8,15 +9,20 @@ from telethon.sessions import StringSession
 from supabase import create_client
 
 # --- 配置加载与解析 ---
-api_id = int(os.environ['TG_API_ID'])
-api_hash = os.environ['TG_API_HASH']
-session_string = os.environ['TG_SESSION_STRING']
-n8n_webhook = os.environ['N8N_WEBHOOK_URL']
-supabase_url = os.environ['SUPABASE_URL']
-supabase_key = os.environ['SUPABASE_KEY']
+try:
+    api_id = int(os.environ['TG_API_ID'])
+    api_hash = os.environ['TG_API_HASH']
+    session_string = os.environ['TG_SESSION_STRING']
+    n8n_webhook = os.environ['N8N_WEBHOOK_URL']
+    supabase_url = os.environ['SUPABASE_URL']
+    supabase_key = os.environ['SUPABASE_KEY']
+    target_channels_env = os.environ['TARGET_CHANNELS']
+except KeyError as e:
+    print(f"❌ Critical Error: Missing environment variable {e}")
+    sys.exit(1)
 
 # 解析 TARGET_CHANNELS (格式: channel_id:folder_name,channel2:folder2)
-raw_targets = os.environ['TARGET_CHANNELS'].split(',')
+raw_targets = target_channels_env.split(',')
 channel_map = {}
 for item in raw_targets:
     if ':' in item:
@@ -55,9 +61,26 @@ async def upload_to_supabase(file_path, folder_name):
 
 async def main():
     print("🚀 Script Started...")
-    print(f"📂 Brand Mapping: {channel_map}") # 打印映射关系以供调试
+    print(f"📂 Brand Mapping: {channel_map}") 
     
-    await client.connect()
+    # --- 🛡️ 核心修复：安全连接逻辑 ---
+    try:
+        print("📡 Connecting to Telegram...")
+        await client.connect()
+    except Exception as e:
+        print(f"🔥 Connection Error: {e}")
+        sys.exit(1)
+
+    # 关键检查：如果 Session 在 GitHub IP 被判定失效，立即报错退出，防止卡死
+    if not await client.is_user_authorized():
+        print("==========================================")
+        print("❌ 严重错误：Telegram 拒绝了此 Session (可能是异地 IP 触发验证)。")
+        print("👉 脚本将立即退出，而不是卡在这里等待验证码。")
+        print("==========================================")
+        sys.exit(1)
+    
+    print("✅ 登录成功！Session 有效，开始执行业务逻辑。")
+    # ------------------------------------
     
     # 设定时间窗口：过去 65 分钟
     cutoff_time = datetime.now(timezone.utc) - timedelta(minutes=65)
@@ -70,6 +93,7 @@ async def main():
     for channel, brand_folder in channel_map.items():
         print(f"🔍 Checking channel: {channel} (Target Folder: {brand_folder})")
         try:
+            # 这里的逻辑是正确的批处理（iter_messages），不会导致卡死
             async for message in client.iter_messages(channel, offset_date=cutoff_time, reverse=True):
                 
                 # 1. 过滤逻辑
@@ -93,6 +117,8 @@ async def main():
                     
                     for m in real_group:
                         if m.media:
+                            # 确保临时目录存在
+                            os.makedirs("/tmp/", exist_ok=True)
                             path = await m.download_media(file=f"/tmp/")
                             if path:
                                 # 传入 brand_folder
@@ -106,6 +132,7 @@ async def main():
                 elif message.media:
                     print(f"📸 Found Single Media in {channel}")
                     media_type = "photo" if message.photo else "video"
+                    os.makedirs("/tmp/", exist_ok=True)
                     path = await message.download_media(file=f"/tmp/")
                     if path:
                         # 传入 brand_folder
@@ -143,13 +170,15 @@ async def main():
         print(f"🚀 Sending {len(payloads)} items to n8n...")
         for p in payloads:
             try:
-                r = requests.post(n8n_webhook, json=p)
+                # 增加了超时设置，防止 n8n 无响应导致 Python 卡死
+                r = requests.post(n8n_webhook, json=p, timeout=30)
                 print(f"✅ Sent ID {p['message_id']} (Brand: {p['brand']}): {r.status_code}")
                 await asyncio.sleep(1) 
             except Exception as e:
                 print(f"⚠️ Webhook failed: {e}")
 
     await client.disconnect()
+    print("👋 Script finished successfully.")
 
 if __name__ == '__main__':
     asyncio.run(main())
