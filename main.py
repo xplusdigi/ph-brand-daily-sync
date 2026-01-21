@@ -15,6 +15,7 @@ try:
     api_hash = os.environ['TG_API_HASH']
     session_string = os.environ['TG_SESSION_STRING']
     n8n_webhook = os.environ['N8N_WEBHOOK_URL']
+    n8n_auth_token = os.environ.get('N8N_AUTH_TOKEN', 'my-fallback-token')
     supabase_url = os.environ['SUPABASE_URL']
     supabase_key = os.environ['SUPABASE_KEY']
     target_channels_env = os.environ['TARGET_CHANNELS']
@@ -183,7 +184,12 @@ async def main():
         print(f"🚀 Sending {len(payloads)} items to n8n...")
         for p in payloads:
             try:
-                r = requests.post(n8n_webhook, json=p, timeout=30)
+                r = requests.post(
+                    n8n_webhook, 
+                    json=p, 
+                    timeout=30,
+                    headers={'ph-brand-agents': n8n_auth_token}
+                )
                 print(f"✅ Sent ID {p['message_id']} (Brand: {p['brand']}): {r.status_code}")
                 await asyncio.sleep(1) 
             except Exception as e:
