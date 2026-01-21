@@ -159,7 +159,6 @@ async def main():
     else:
         print(f"🚀 Pushing {len(payloads)} items to n8n...")
         
-        # ✅ 这里也简化了，既然 token 必然存在，直接赋值即可
         headers = {'Authorization': n8n_auth_token}
 
         for p in payloads:
