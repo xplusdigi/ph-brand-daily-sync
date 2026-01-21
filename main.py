@@ -188,7 +188,7 @@ async def main():
                     n8n_webhook, 
                     json=p, 
                     timeout=30,
-                    headers={'ph-brand-agents': n8n_auth_token}
+                    headers={'PH Brand Daily Post Agents': n8n_auth_token}
                 )
                 print(f"✅ Sent ID {p['message_id']} (Brand: {p['brand']}): {r.status_code}")
                 await asyncio.sleep(1) 
