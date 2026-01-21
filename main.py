@@ -8,7 +8,7 @@ from telethon import TelegramClient
 from telethon.sessions import StringSession
 from supabase import create_client
 
-# --- 1. 配置加载 ---
+# --- 配置加载 ---
 try:
     api_id = int(os.environ['TG_API_ID'])
     api_hash = os.environ['TG_API_HASH']
@@ -32,7 +32,7 @@ for item in raw_targets:
     else:
         channel_map[item.strip()] = "Uncategorized"
 
-# --- 2. 初始化客户端 ---
+# --- 初始化客户端 ---
 client = TelegramClient(
     StringSession(session_string), 
     api_id, 
@@ -66,7 +66,7 @@ async def main():
     print("🚀 Service Script Started...")
     print(f"📂 Brand Mapping: {channel_map}") 
     
-    # --- 3. 连接逻辑 ---
+    # --- 连接逻辑 ---
     try:
         print("📡 Connecting to Telegram...")
         await client.connect()
@@ -78,7 +78,7 @@ async def main():
         print(f"🔥 Connection Failed: {e}")
         sys.exit(1)
     
-    # --- 4. 业务逻辑 ---
+    # --- 业务逻辑 ---
     manila_tz = timezone(timedelta(hours=8))
     now_manila = datetime.now(manila_tz)
     cutoff_time = now_manila - timedelta(minutes=65)
@@ -153,7 +153,7 @@ async def main():
             print(f"❌ Error in channel {channel}: {e}")
             continue
 
-    # --- 5. 推送数据 ---
+    # --- 推送数据 ---
     if not payloads:
         print("💤 No new content found.")
     else:
