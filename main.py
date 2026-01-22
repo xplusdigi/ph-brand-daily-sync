@@ -145,7 +145,7 @@ async def main():
                     "media_urls": media_urls, 
                     "media_type": media_type,
                     "message_id": final_msg_id,
-                    "date": message.date.isoformat()
+                    "date": message.date.astimezone(manila_tz).isoformat()
                 }
                 payloads.append(payload)
 
