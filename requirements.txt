@@ -1,3 +1,4 @@
 telethon
-requests
 supabase
+httpx
+requests
