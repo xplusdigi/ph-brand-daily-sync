@@ -12,11 +12,12 @@ from telethon import TelegramClient
 from telethon.sessions import StringSession
 from supabase import create_client
 
-# 日志配置
+# 日志配置优化
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(levelname)s - %(message)s',
-    datefmt='%Y-%m-%d %H:%M:%S'
+    datefmt='%Y-%m-%d %H:%M:%S',
+    stream=sys.stdout 
 )
 logger = logging.getLogger(__name__)
 
@@ -24,7 +25,7 @@ logger = logging.getLogger(__name__)
 N8N_WEBHOOK_URL = os.environ.get('N8N_WEBHOOK_URL')
 N8N_AUTH_TOKEN = os.environ.get('N8N_AUTH_TOKEN')
 
-#核心功能函数
+# 核心功能函数
 async def send_alert(message, level="Critical"):
     """
     通用报警发送函数 - 发送至 n8n，由 n8n 路由至 Global Error Handler
@@ -80,7 +81,6 @@ def upload_to_supabase_with_retry(supabase_client, bucket_name, file_path, folde
     logger.error(f"❌ Failed to upload {file_name} after {max_retries} attempts")
     return None, None
 
-# 清理函数
 def delete_from_supabase(supabase_client, bucket_name, paths):
     """批量删除 Supabase 文件 (用于回滚)"""
     if not paths: return
@@ -182,11 +182,12 @@ async def main_logic():
             existing_ids_set = set()
             try:
                 db_check_limit = max(fetch_limit * 2, 1000)
+                
                 existing_data = supabase.table('daily_post_archive') \
                     .select('message_id') \
                     .eq('brand', brand_folder) \
                     .eq('source_channel', channel) \
-                    .order('created_at', desc=True) \
+                    .order('inserted_at', desc=True) \
                     .limit(db_check_limit) \
                     .execute()
                 
@@ -249,7 +250,7 @@ async def main_logic():
                                             await send_alert(error_msg, level="Upload_Error")
                                             is_payload_valid = False
                                             
-                                            # 删除这个相册之前已经上传成功的图片
+                                            # 执行回滚：删除这个相册之前已经上传成功的图片
                                             if album_uploaded_paths:
                                                 await asyncio.to_thread(
                                                     delete_from_supabase,
@@ -361,7 +362,7 @@ if __name__ == '__main__':
         error_msg = f"🔥 CRITICAL SCRIPT CRASH: {str(e)}\n\n{traceback.format_exc()}"
         logger.critical(error_msg)
         
-        # 尝试发送遗言到 n8n
+        # 尝试发送遗言到 n8n (同步阻塞等待)
         try:
             print("🚨 Attempting to send death rattle to n8n...", file=sys.stderr)
             asyncio.run(send_alert(error_msg, level="CRITICAL_CRASH"))
@@ -370,6 +371,6 @@ if __name__ == '__main__':
             # 即使报警失败，也要打印到控制台，以便查阅 Railway 日志
             print(f"❌ Failed to send crash alert: {alert_error}", file=sys.stderr)
 
-        # 暴力退出 (防止卡死 Railway)
+        # 暴力退出 (防止 Telegram 线程卡死 Railway)
         print("💀 Executing os._exit(1) to kill zombie threads...", file=sys.stderr)
         os._exit(1)
